@@ -72,7 +72,7 @@ int yyerror(char *s);
 }
 %expect 20
 
-%token K_OPTIONS K_DEFAULT K_PORT K_BINDADDR K_PERSIST K_TIMEOUT
+%token K_OPTIONS K_DEFAULT K_PORT K_BINDADDR K_PERSIST K_TIMEOUT K_IFNAME
 %token K_PASSWD K_PROG K_PPP K_SPEED K_IFCFG K_FWALL K_ROUTE K_DEVICE 
 %token K_MULTI K_SRCADDR K_IFACE K_ADDR
 %token K_TYPE K_PROT K_NAT_HACK K_COMPRESS K_ENCRYPT K_KALIVE K_STAT
@@ -145,6 +145,10 @@ options:
 
 /* Don't override command line options */
 option:  '\n'
+  | K_IFNAME WORD   {
+                        free(vtun.ifname);
+                        vtun.ifname = strdup($2);
+                    }
   | K_PORT NUM 		{ 
 			  if(vtun.bind_addr.port == -1)
 			     vtun.bind_addr.port = $2;

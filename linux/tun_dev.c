@@ -33,44 +33,11 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <linux/if.h>
+#include <linux/sockios.h>
 
 #include "vtun.h"
 #include "lib.h"
 
-/* 
- * Allocate TUN device, returns opened fd. 
- * Stores dev name in the first arg(must be large enough).
- */  
-static int tun_open_common0(char *dev, int istun)
-{
-    char tunname[14];
-    int i, fd, err;
-
-    if( *dev ) {
-       sprintf(tunname, "/dev/%s", dev);
-       return open(tunname, O_RDWR);
-    }
-
-    sprintf(tunname, "/dev/%s", istun ? "tun" : "tap");
-    err = 0;
-    for(i=0; i < 255; i++){
-       sprintf(tunname + 8, "%d", i);
-       /* Open device */
-       if( (fd=open(tunname, O_RDWR)) > 0 ) {
-          strcpy(dev, tunname + 5);
-          return fd;
-       }
-       else if (errno != ENOENT)
-          err = errno;
-       else if (i)	/* don't try all 256 devices */
-          break;
-    }
-    if (err)
-	errno = err;
-    return -1;
-}
-
-#ifdef HAVE_LINUX_IF_TUN_H /* New driver support */
 #include <linux/if_tun.h>
 
 #ifndef OTUNSETNOCSUM
@@ -88,35 +55,77 @@ static int tun_open_common(char *dev, int istun)
     int fd;
 
     if ((fd = open("/dev/net/tun", O_RDWR)) < 0)
-       return tun_open_common0(dev, istun);
+		goto failed;
 
     memset(&ifr, 0, sizeof(ifr));
     ifr.ifr_flags = (istun ? IFF_TUN : IFF_TAP) | IFF_NO_PI;
     if (*dev)
+    {
        strncpy(ifr.ifr_name, dev, IFNAMSIZ);
 
-    if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0) {
-       if (errno == EBADFD) {
-	  /* Try old ioctl */
- 	  if (ioctl(fd, OTUNSETIFF, (void *) &ifr) < 0) 
-	     goto failed;
-       } else
-          goto failed;
+       if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0) {
+          if (errno == EBADFD) {
+	     /* Try old ioctl */
+ 	     if (ioctl(fd, OTUNSETIFF, (void *) &ifr) < 0) 
+	        goto failed;
+          } else
+             goto failed;
+       } 
+    }
+    else
+    {
+      char newname[IFNAMSIZ + 1];
+      char n[4];
+      int k;
+
+      if(vtun.ifname && *vtun.ifname)
+      {
+	/* try to rename interface until it has success */
+	for(k=0; k < 255; k++)
+        {
+          strncpy(newname, vtun.ifname, IFNAMSIZ);
+
+          /* truncate to reserve space for number and '\0' */
+          newname[IFNAMSIZ-3]='\0';
+          sprintf(n,"%ld", k); 
+          strcat(newname,n); 
+
+          vtun_syslog(LOG_DEBUG,"VTUN: check ifname=%s\n", newname);	
+
+          strncpy(ifr.ifr_name, newname, IFNAMSIZ);
+          if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0) {
+             if (errno == EBADFD) { /* Try old ioctl */
+ 	        if (ioctl(fd, OTUNSETIFF, (void *) &ifr) >= 0) 
+                   break;
+             }
+             continue;
+          } 
+          break;
+        }//for
+        if(k==255)
+	  goto failed;
+      }//if vtun.ifname 
+      else
+      { //get ifname with same function: returned in ifr.ifr_name
+       if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0) {
+          if (errno == EBADFD) {
+	     /* Try old ioctl */
+ 	     if (ioctl(fd, OTUNSETIFF, (void *) &ifr) < 0) 
+	        goto failed;
+          } else
+             goto failed;
+       } 
+      }//else vtun.ifname
     } 
 
     strcpy(dev, ifr.ifr_name);
+    vtun_syslog(LOG_INFO,"VTUN: use if name=%s\n", dev);	
     return fd;
 
 failed:
     close(fd);
     return -1;
 }
-
-#else
-
-# define tun_open_common(dev, type) tun_open_common0(dev, type)
-
-#endif /* New driver support */
 
 int tun_open(char *dev) { return tun_open_common(dev, 1); }
 int tap_open(char *dev) { return tun_open_common(dev, 0); }
