@@ -86,6 +86,6 @@ struct kword cfg_param[] = {
    { "inetd",	 VTUN_INETD },
    { "stand",	 VTUN_STAND_ALONE },
    { "keep",     VTUN_PERSIST_KEEPIF },
-   { "aes256gcm",VTUN_ENC_AES256GCM },
+   { "chacha20poly1305ietf",VTUN_ENC_CHACHA20POLY1305IETF },
    { NULL , 0 }
 };

@@ -168,11 +168,12 @@ fi
 if test "$SODIUM" = "yes"; then
    AC_MSG_RESULT()
    AC_CHECKING( for Sodium Library and Header files ... )
-   AC_SEARCH_LIBS(crypto_aead_aes256gcm_encrypt, [sodium],
-                  [AC_DEFINE(HAVE_SODIUM, [1], [Define to 1 if you have Sodium])],
-                  AC_ERROR([libsodium with crypto_aead_aes256gcm_encrypt not found]))
+   PKG_CHECK_MODULES([libsodium], [libsodium >= 1.0.6], [AC_DEFINE(HAVE_SODIUM, [1], [Define to 1 if you have Sodium])],
+                    AC_ERROR([libsodium with crypto_aead_chacha20poly1305_ietf_encrypt not found]))
+   AC_SUBST([libsodium_CFLAGS])
+   AC_SUBST([libsodium_LIBS])
    AC_SEARCH_HEADERS(sodium.h,
-    $SSL_HDR_DIR /usr/include /usr/local/include /opt/include, 
+    $SODIUM_HDR_DIR /usr/include /usr/local/include /opt/include, 
     ,
     AC_MSG_ERROR( Sodium headers not found. )
    )

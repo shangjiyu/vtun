@@ -13,9 +13,9 @@
 #ifdef HAVE_SODIUM
 #include <sodium.h>
 
-#define crypto_aead_NPUBBYTES crypto_aead_aes256gcm_NPUBBYTES
-#define crypto_aead_ABYTES    crypto_aead_aes256gcm_ABYTES
-#define crypto_aead_KEYBYTES  crypto_aead_aes256gcm_KEYBYTES
+#define crypto_aead_NPUBBYTES crypto_aead_chacha20poly1305_IETF_NPUBBYTES
+#define crypto_aead_ABYTES    crypto_aead_chacha20poly1305_ABYTES
+#define crypto_aead_KEYBYTES  crypto_aead_chacha20poly1305_KEYBYTES
 
 #define MESSAGE_MAX_SIZE          VTUN_FRAME_SIZE
 #define CIPHERTEXT_ABYTES         (crypto_aead_ABYTES + crypto_aead_NPUBBYTES)
@@ -26,7 +26,7 @@
 #define SLEEP_WHEN_CLOCK_IS_OFF 10
 
 typedef struct CryptoCtx {
-    crypto_aead_aes256gcm_state *state;
+    unsigned char *key;
     unsigned char *ciphertext;
     unsigned char *message;
     unsigned char *nonce;
@@ -66,12 +66,12 @@ init_nonce(unsigned char *nonce, size_t nonce_size)
 static int
 alloc_encrypt(struct vtun_host *host)
 {
-    ctx.state = sodium_malloc(sizeof *ctx.state);
+    ctx.key = sodium_malloc(crypto_aead_KEYBYTES);
     ctx.message = sodium_malloc(MESSAGE_MAX_SIZE);
     ctx.ciphertext = sodium_malloc(CIPHERTEXT_MAX_TOTAL_SIZE);
     ctx.nonce = sodium_malloc(crypto_aead_NPUBBYTES);
     ctx.previous_decrypted_nonce = sodium_malloc(crypto_aead_NPUBBYTES);
-    if (host->key == NULL || ctx.state == NULL || ctx.message == NULL ||
+    if (host->key == NULL || ctx.key == NULL || ctx.message == NULL ||
         ctx.ciphertext == NULL || ctx.ciphertext == NULL || ctx.nonce == NULL ||
         ctx.previous_decrypted_nonce == NULL) {
         abort();
@@ -80,7 +80,7 @@ alloc_encrypt(struct vtun_host *host)
         return -1;
     }
     memset(ctx.previous_decrypted_nonce, 0, crypto_aead_NPUBBYTES);
-    crypto_aead_aes256gcm_beforenm(ctx.state, host->key);
+    memcpy(ctx.key, host->key, sizeof(host->key));
     sodium_free(host->key);
     host->key = NULL;
 
@@ -108,11 +108,11 @@ encrypt_buf(int message_len_, char *message_, char ** const ciphertext_p)
     if (message_len_ < 0 || message_len > MESSAGE_MAX_SIZE) {
         return -1;
     }
-    crypto_aead_aes256gcm_encrypt_afternm(ctx.ciphertext, &ciphertext_len,
+    crypto_aead_chacha20poly1305_ietf_encrypt(ctx.ciphertext, &ciphertext_len,
                                           message, message_len,
                                           NULL, 0ULL,
                                           NULL, ctx.nonce,
-                                          (const crypto_aead_aes256gcm_state *) ctx.state);
+                                          ctx.key);
     memcpy(ctx.ciphertext + message_len + crypto_aead_ABYTES,
            ctx.nonce, crypto_aead_NPUBBYTES);
     sodium_increment(ctx.nonce, crypto_aead_NPUBBYTES);
@@ -136,10 +136,10 @@ decrypt_buf(int ciphertext_len_, char *ciphertext_, char ** const message_p)
     ciphertext_len -= crypto_aead_NPUBBYTES;
     nonce = ciphertext + ciphertext_len;
     if (sodium_compare(nonce, ctx.previous_decrypted_nonce, crypto_aead_NPUBBYTES) <= 0 ||
-        crypto_aead_aes256gcm_decrypt_afternm(ctx.message, &message_len, NULL,
+	crypto_aead_chacha20poly1305_ietf_decrypt(ctx.message, &message_len, NULL,
                                               ciphertext, ciphertext_len,
                                               NULL, 0ULL, nonce,
-                                              (const crypto_aead_aes256gcm_state *) ctx.state) != 0) {
+                                              ctx.key) != 0) {
         return -1;
     }
     memcpy(ctx.previous_decrypted_nonce, nonce, crypto_aead_NPUBBYTES);

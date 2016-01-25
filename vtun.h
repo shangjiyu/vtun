@@ -142,7 +142,7 @@ extern llist host_list;
 #define VTUN_ENCRYPT    0x0008
 
 /* Cipher options */
-#define VTUN_ENC_AES256GCM      17
+#define VTUN_ENC_CHACHA20POLY1305IETF      17
 
 /* Mask to drop the flags which will be supplied by the server */
 #define VTUN_CLNT_MASK  0xf000
