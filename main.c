@@ -43,7 +43,7 @@
 #include "lib.h"
 #include "compat.h"
 
-#define OPTSTRING "mif:P:L:t:npq"
+#define OPTSTRING "mif:P:L:t:npqI:"
 #ifdef HAVE_WORKING_FORK
 #  define SERVOPT_STRING "s"
 #else
@@ -84,6 +84,9 @@ int main(int argc, char *argv[], char *env[])
      vtun.persist = -1;
      vtun.timeout = -1;
 
+     vtun.ifname = NULL;
+     vtun.process_name = NULL;
+
      /* Dup strings because parser will try to free them */
      vtun.ppp   = strdup("/usr/sbin/pppd");
      vtun.ifcfg = strdup("/sbin/ifconfig");
@@ -97,6 +100,8 @@ int main(int argc, char *argv[], char *env[])
      vtun.svr = 0;
      vtun.svr_type = -1;
      vtun.syslog   = LOG_DAEMON;
+     vtun.ifname = strdup(""); //free() is called in config parser
+
 
      /* Initialize default host options */
      memset(&default_host, 0, sizeof(default_host));
@@ -124,6 +129,9 @@ int main(int argc, char *argv[], char *env[])
 	    case 's':
 #endif
 		vtun.svr = 1;
+		break;
+	    case 'I':
+		vtun.process_name = strdup(optarg);
 		break;
 	    case 'L':
 		vtun.svr_addr = strdup(optarg);
@@ -226,12 +234,16 @@ int main(int argc, char *argv[], char *env[])
 	chdir("/");
      }
 
+	 if(vtun.process_name) {
+		 init_title(argc,argv,env,vtun.process_name);
+	 } else {
+		 init_title(argc,argv,env,"vtund[s]: ");
+	 }
+
      if(vtun.svr){
         memset(&sa,0,sizeof(sa));
         sa.sa_handler=reread_config;
         sigaction(SIGHUP,&sa,NULL);
-
-        init_title(argc,argv,env,"vtund[s]: ");
 
 	if( vtun.svr_type == VTUN_STAND_ALONE ){
 #ifdef HAVE_WORKING_FORK
@@ -244,7 +256,6 @@ int main(int argc, char *argv[], char *env[])
 
 	server(sock);
      } else {
-        init_title(argc,argv,env,"vtund[c]: ");
         client(host);
      }
 

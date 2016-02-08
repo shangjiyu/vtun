@@ -61,6 +61,7 @@ struct kword cfg_keyword[] = {
    { "keepalive",K_KALIVE }, 
    { "stat",	 K_STAT }, 
    { "syslog",   K_SYSLOG },
+   { "ifname",   K_IFNAME },
    { NULL , 0 }
 };
 

@@ -191,6 +191,8 @@ extern llist host_list;
 struct vtun_opts {
    int  timeout;
    int  persist;
+   char *ifname;
+   char *process_name;
 
    char *cfg_file;
 
